@@ -11,6 +11,9 @@ Created on Fri Apr 16 15:23:09 2021
 # caution is recomended if making large changes to the variables directly affecting memory
 # this includes: World Size, Number of total Actors, and Max Memory
 
+# set to true if you want to see some stats in the console as the run progresses
+PRINT_STATS_TO_CONSOLE = True
+
 ####################### Actor Control Variables #######################
 NUM_SPECIES = 4 # max 10
 SPECIES_START_POP = 30
@@ -19,7 +22,7 @@ MAX_MEM_SIZE = 40000
 # Number of islands will be the number of processes created
 # used mainly because I couldn't come up with any other way
 # to run systems in parrallel on netlogo
-NUM_ISLANDS = 5
+NUM_ISLANDS = 3
 
 ####################### Neural Network Variables #######################
 LEARNING_RATE = 0.0008
@@ -35,8 +38,10 @@ EPISODE_LENGTH = 600
 
 # Use as many as your computer can handle
 # the NetLogo instances use some of their own threading, so not sure how much gain you can actually get from increasing
-NUM_PROCESSES = 6 
+NUM_PROCESSES = 6
 
+# Honestly, some values of these might crash the simulation or cause it to enter into an infinite loop
+# If a value breaks it, then it just needs to be changed to something more reasonable
 ####################### NetLogo Simulation Variables #######################
 WORLD_HEIGHT = 60
 WORLD_WIDTH = 90
@@ -50,11 +55,10 @@ MAX_EAT = 100 # hunger per eat action = (MAX_EAT / 2) + random (MAX_EAT / 2)
 MAX_HUNGER = 1500
 
 # controls how close to the center of the map stone is spawned
-# negative values force stone towards edges
 # fraction is % of edges to avoid
 # ie. 0.3 means stone avoids spawning on patches with
 # x < 0.3 * max-pxcor and x > 0.7 * max-pxcor and same for y
-# in range [-0.4, 0.4]
+# in range [0, 0.2]
 STONE_CENTERING = 0.2
 
 # 0: teams spawn as far away from eachother as possible
@@ -69,7 +73,6 @@ TEAM_SEPERATION = 0.75
 # Controls how team sides are drawn
 # 0: left and right split
 # 1: top and bottom split
-# 2: diagonal split
 TEAM_SPLIT_STYLE = 0
 
 ######### Rewards and Bonus Tuning #########

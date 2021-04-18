@@ -5,10 +5,6 @@ Created on Sun Mar 14 22:01:18 2021
 @author: Colin
 """
 
-import os
-import logging
-logging.getLogger("tensorflow").setLevel(logging.FATAL)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 
 # general layout for convolution cobbled together from the following:

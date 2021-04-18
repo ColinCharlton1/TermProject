@@ -5,15 +5,10 @@ Created on Fri Mar  5 12:12:54 2021
 @author: Colin
 """
 
-import os
-import logging
-logging.getLogger("tensorflow").setLevel(logging.FATAL)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import time
-from multiprocessing import Process, Queue
+from multiprocessing import Queue
 import numpy as np
-import pandas as pd
 import pyNetLogo
 from AgentManagement import SpeciesManager
 from NetLogoProcess import NetLogoProcessManager
@@ -31,12 +26,6 @@ def main():
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
     np.set_printoptions(threshold=1000000, linewidth=1000000)
     
-    # Creating Required Directories in case they don't exist
-    modelDirName = 'models'
-    if not os.path.exists(modelDirName):
-        os.mkdir(modelDirName)
-    
-    
     # Useful Variable Initialization
     current_worlds = [0] * cf.NUM_ISLANDS
     exploration_rate = 1.0
@@ -48,21 +37,14 @@ def main():
     myrng = np.random.default_rng()
     population_dist_probs = np.zeros((cf.NUM_SPECIES, cf.NUM_ISLANDS)).astype(np.float32) + 1 / cf.NUM_ISLANDS
     population_dist = np.zeros((cf.NUM_ISLANDS, cf.NUM_SPECIES)).astype(np.int32) + cf.SPECIES_START_POP
-    inques = []
-    outque = Queue()
-    lockque = Queue()
-    pros = []
-    
+  
     # https://stackoverflow.com/questions/35751306/python-how-to-pad-numpy-array-with-zeros/46115998 
     # answer from MSeifert used to make padded array for world management
     padding = 2 * cf.AGENT_SIGHT_RADIUS
     padded_world = np.zeros((cf.WORLD_HEIGHT + padding, cf.WORLD_WIDTH + padding, WORLD_FEATURES)).astype(np.int8) 
-                   
-    # set run name so different runs are automatically recorded seperately
-    run_name = time.strftime("%d_%H_%M")
 
     # Recording Variable Initialization
-    data_manager = DataManager(species_list, run_name, verbose=True)
+    data_manager = DataManager(species_list)
     
     # Species Manager Setup (The Neural Network and Memory Manager)
     species_manager = SpeciesManager(species_list,
@@ -71,8 +53,9 @@ def main():
     # this is needed to start Java Virtual Machine so processes get attached to it
     mainNetLogo = pyNetLogo.NetLogoLink(gui=False)
 
-    # Initializing this class starts all the processes
-    netLogoProcessManager = NetLogoProcessManager(population_dist)
+    # Initializing NetLogoProcessManager class starts all the processes
+    outque = Queue()
+    netLogoProcessManager = NetLogoProcessManager(population_dist, outque)
    
     # Killed cause unnecessary after processes have started
     mainNetLogo.kill_workspace()  
@@ -118,12 +101,14 @@ def main():
                     
                     if type(world_updates) is np.ndarray:
                         update_world(current_worlds[pro_id], world_updates.astype(np.int16), cf.AGENT_SIGHT_RADIUS)
-
+                    
+                    new_world = current_worlds[pro_id].copy()
+                    
                     if cf.MASK_VISION:
-                        new_states = get_masked_world_data(current_worlds[pro_id], new_species_vals, cf.AGENT_SIGHT_RADIUS)
+                        new_states = get_masked_world_data(new_world, new_species_vals, cf.AGENT_SIGHT_RADIUS)
                     else:
-                        new_states = get_world_data(current_worlds[pro_id], new_species_vals, cf.AGENT_SIGHT_RADIUS)
-                        all_new_worlds.append(current_worlds[pro_id].copy())
+                        new_states = get_world_data(new_world, new_species_vals, cf.AGENT_SIGHT_RADIUS)
+                        all_new_worlds.append(new_world)
                         
                     new_species_vals[:,0] = new_species_vals[:,0] / cf.WORLD_WIDTH
                     new_species_vals[:,1] = new_species_vals[:,1] / cf.WORLD_HEIGHT
@@ -138,7 +123,7 @@ def main():
                         gen_total_rewards[pro_id, s] += new_species_vals[start:end,-1].sum()
                         start = end
                 else:
-                    inques[pro_id].put(3)
+                    netLogoProcessManager.kill_island(pro_id)
                     dead_islands += 1
             
             if i == 1:
@@ -238,12 +223,7 @@ def main():
         data_manager.commit_data(species_stats, action_frequency, gen_total_rewards, old_population_dist, island_stock_stats)
         print("########################################################")
         ################### end generation loop #################
-    for inque in inques:
-        inque.put(4)
-    for p in pros:
-        p.join()
-    print("ready to be killed")
-
+    netLogoProcessManager.kill_all()
 
 if __name__ == "__main__":
     main()

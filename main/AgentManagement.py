@@ -89,12 +89,15 @@ class SpeciesManager():
 
     """
     def __init__(self, species_names, num_actions, channels=3, num_extras=9, min_world_val = 0, max_world_val = 25, saved_model=None):
-        
+        # Creating Required Directories in case they don't exist
+        modelDirName = 'models'
+        if not os.path.exists(modelDirName):
+            os.mkdir(modelDirName)
         # dimensions of agent states
         dim = cf.AGENT_SIGHT_RADIUS * 2 + 1
         # allows for a saved model to be the initial model used in a training run
         # untested and no support outside of SpeciesManager, would need to change code in main to use
-        # just add a model name to the construction in main, and potential adjust variables like exploration rate
+        # just add a model name to the construction in main, and potentialy adjust variables like exploration rate
         if saved_model != None:
             model = tf.keras.models.load_model(saved_model)
             self.model = model
@@ -251,13 +254,13 @@ class SpeciesManager():
 # takes a trained model to create, same idea as normal manager just simplified to not train
 # meant to be used by showcase to run saved models and show results
 class TrainedSpeciesManager():
-    def __init__(self, model_name, species_names, species_pop, time_steps, radius, maxmem, channels=3, num_extras=9, min_world_val = 0, max_world_val = 25):
-        dim = radius * 2 + 1
+    def __init__(self, model_name, species_names, num_actions, channels=3, num_extras=9, min_world_val = 0, max_world_val = 25):
+        dim = cf.AGENT_SIGHT_RADIUS * 2 + 1
         # tf.keras.mixed_precision.set_global_policy('mixed_float16')
         self.model = tf.keras.models.load_model(model_name)
-        self.maxmem = maxmem
-        self.radius = radius
-        self.time_steps = time_steps
+        self.time_steps = cf.TIMESTEPS_IN_OBSERVATIONS
+        self.maxmem = cf.MAX_MEM_SIZE
+        self.radius = cf.AGENT_SIGHT_RADIUS
         self.min_world_val = min_world_val
         self.max_world_val = max_world_val
         self.rng = np.random.default_rng()
@@ -268,7 +271,9 @@ class TrainedSpeciesManager():
         self.empty_current_state = [self.empty_state for __ in range(self.time_steps)]
         self.empty_extra = np.zeros((num_extras,), dtype=np.float32)
         self.empty_current_extra = [self.empty_extra[:-2] for __ in range(self.time_steps)]
-        self.actor_sets = [[Agent(self.empty_state, self.empty_extra, self.time_steps) for __ in range(species_pop)] for __ in range(len(species_names))]
+        self.actor_sets = [[Agent(self.empty_state, self.empty_extra, self.time_steps) 
+                               for __ in range(cf.SPECIES_START_POP)] 
+                                   for __ in range(len(species_names))]
     
     
     def new_generation(self, start_states, start_extras, new_worlds):
@@ -289,5 +294,5 @@ class TrainedSpeciesManager():
         states = np.asarray([[a.get_current_states() for a in species] for species in self.actor_sets])
         extras = np.asarray([[a.get_current_extras() for a in species] for species in self.actor_sets])
         inputs = [[states[i], extras[i]] for i in range(len(states))]
-        actions = np.argmax(self.model.predict_on_batch(inputs), axis=2)
+        actions = np.argmax(self.model(inputs, training = False), axis=2)
         return actions

@@ -14,11 +14,9 @@ from WorldUtils import get_species_dist_string
 import ConfigurationManager as cf
 import time
 from multiprocessing import Process, Queue
-from DataManager import DataManager
-from WorldUtils import update_world, get_world_data, get_masked_world_data, distribute_populations
 
 class NetLogoProcessManager():
-    def __init__(self, start_pop_dist):
+    def __init__(self, start_pop_dist, outque):
         self.actionsDirName = 'actions'
         if not os.path.exists(self.actionsDirName):
             os.mkdir(self.actionsDirName)
@@ -26,9 +24,8 @@ class NetLogoProcessManager():
         lockque = Queue()
         self.pros = []
         
-        outque = Queue()
         for __ in range(cf.NUM_PROCESSES):
-                lockque.put(1)
+            lockque.put(1)
         for num in range(cf.NUM_ISLANDS):
             inque = Queue()
             self.inques.append(inque)
@@ -39,7 +36,7 @@ class NetLogoProcessManager():
             # NetLogo Startup is threaded and very resource intensive,
             # this gives it a chance to start in each process without bottlenecking the CPU
             # might need more time if using even more threads
-            time.sleep(3)
+            time.sleep(3)   
      
     def get_initial_worlds(self):
         for inque in self.inques:
@@ -49,7 +46,7 @@ class NetLogoProcessManager():
         for inque in self.inques:
             inque.put(0)
     
-    def kill_ilsand(self, pro_id):
+    def kill_island(self, pro_id):
         self.inques[pro_id].put(3)
         
     def send_actions(self, pro_id, ids, actions):
@@ -62,7 +59,11 @@ class NetLogoProcessManager():
             inque.put(2)
             inque.put(new_pop_dist[index])
 
-
+    def kill_all(self):
+        for inque in self.inques:
+            inque.put(4)
+        for p in self.pros:
+            p.join()
 
 
 # all interactions with NetLogo are adapted from example code shared by the creators of PyNetLogo
@@ -83,8 +84,9 @@ def netLogo_instance(mylockque, myinque, myoutque, id_num, start_dist, actionsDi
         netlogo = pyNetLogo.NetLogoLink(gui=True)
     else:
         netlogo = pyNetLogo.NetLogoLink(gui=False)
-        
-    netlogo.load_model("C:/Users/Colin/Desktop/Winter2021/CPSC565/TermProject/repo/TeamBuilderSim.nlogo")    
+     
+    netLogo_model_path = os.path.abspath("TeamBuilderSim.nlogo")    
+    netlogo.load_model(netLogo_model_path)  
     
     netlogo.command("set-env-params " + cf.get_world_configs(id_num))
     netlogo.command("set-reward-params" + cf.get_reward_configs())

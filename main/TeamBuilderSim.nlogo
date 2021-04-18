@@ -245,7 +245,7 @@ to set-env-params [ rock-adj tree-adj bush-adj pud-adj river-tog ww wh ps berry-
   set start-hunger start-hgr
   set max-eating max-eat
   set max-hunger max-hgr
-  set pop-mod 5000 / start-pop
+  set pop-mod start-pop
   set max-carried-wood 750
   set max-carried-stone 250
   set max-trees 8000
@@ -385,15 +385,14 @@ end
 to set-team-bonuses
   ; teams have a small buffer from their stockpiles, should never usually be 0
   let red-structs (count patches with [shade-of? red pcolor])
-  let purple-structs (count patches with [shade-of? violet pcolor])
   let red-stockpiles 5 * (count patches with [pcolor = red])
-  let purple-stockpiles 5 * (count patches with [pcolor = violet])
-
   let red-pop (count actors with [team-color = red])
-  let red-score max list 0.1 ( ( red-stockpiles + red-structs + red-pop ) / max list 1 (sum team1-pop-dist * pop-mod) )
+  let red-score max list 0.1 ( ( red-stockpiles + red-structs + red-pop ) * (pop-mod / sum team1-pop-dist) )
 
+  let purple-structs (count patches with [shade-of? violet pcolor])
+  let purple-stockpiles 5 * (count patches with [pcolor = violet])
   let purple-pop (count actors with [team-color = violet])
-  let purple-score max list 0.1 ( ( purple-stockpiles + purple-structs + purple-pop ) / max list 1 (sum team2-pop-dist * pop-mod) )
+  let purple-score max list 0.1 ( ( purple-stockpiles + purple-structs + purple-pop ) * (pop-mod / sum team2-pop-dist ) )
 
   set red-bonus red-score / (red-score + purple-score)
   set purple-bonus purple-score / (red-score + purple-score)
@@ -520,7 +519,7 @@ to execute-actions
     ifelse (action != 4 and action != 5) [set reward 0 set turn-restriction 0]
     [
       set reward repeat_turn_penalty * turn-restriction
-      set turn-restriction turn-restriction + 1
+      set turn-restriction 1
       ifelse (pcolor = 97) [set hunger hunger - water-move-hcost]
       [set hunger hunger - move-hcost]
     ]
@@ -541,7 +540,7 @@ to execute-actions
     (action = 12) [destroy-structure])
 
     set hunger hunger - 1 ; cost of living
-    if (hunger <= 0) [set death-mark 1 set death-action action set reward -1 * (2 - ticks / 600)]
+    if (hunger <= 0) [set death-mark 1 set death-action action set reward -0.1 * (2 - ticks / 600)]
 
     (
     ifelse
@@ -814,8 +813,8 @@ to reward-wood-build [my-color]
     set bonus bonus + wood__e_adj_b * (count neighbors with [shade-of? enemy-color pcolor])
     set bonus bonus + all_structs__center_world_b / max list 1 (distance patch (round max-pxcor / 2) (round max-pycor / 2))
 
-    if (count patches with [pcolor = 97] > 0)
-    [set bonus bonus + wood__water_b / distance (min-one-of other (patches with [pcolor = 97]) [distance myself])]
+    if (count patches with [shade-of? blue pcolor] > 0)
+    [set bonus bonus + wood__water_b / distance (min-one-of other (patches with [shade-of? blue pcolor]) [distance myself])]
 
     if (count patches with [pcolor = my-color] > 0)
     [set bonus bonus + wood__f_stock_b / distance (min-one-of other (patches with [pcolor = my-color]) [distance myself])]
@@ -839,8 +838,8 @@ to reward-stone-build [my-color]
     set bonus bonus + stone__e_adj_b * (count neighbors with [shade-of? enemy-color pcolor])
     set bonus bonus + all_structs__center_world_b / max list 1 (distance patch (round max-pxcor / 2) (round max-pycor / 2))
 
-    if (count patches with [pcolor = 97] > 0)
-      [set bonus bonus + stone__water_b / distance (min-one-of other (patches with [pcolor = 97]) [distance myself])]
+    if (count patches with [shade-of? blue pcolor] > 0)
+      [set bonus bonus + stone__water_b / distance (min-one-of other (patches with [shade-of? blue pcolor]) [distance myself])]
 
     if (count patches with [pcolor = my-color] > 0)
       [set bonus bonus + stone__f_stock_b / max list 1 distance (min-one-of other (patches with [pcolor = my-color]) [distance myself])]
@@ -857,7 +856,7 @@ to reward-bridge-build
   let bonus 1
 
   ask patch-ahead 1 [
-    set bonus bonus + bridge__water_adj_b * (count neighbors with [pcolor = 97])
+    set bonus bonus + bridge__water_adj_b * (count neighbors with [shade-of? blue pcolor])
     set bonus bonus + bridge__bridge_adj_b * (count neighbors with [shade-of? brown pcolor])
     set bonus bonus + all_structs__center_world_b / max list 1 distance patch (round max-pxcor / 2) (round max-pycor / 2)
   ]

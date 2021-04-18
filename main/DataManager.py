@@ -7,24 +7,27 @@ Created on Fri Apr 16 15:15:39 2021
 
 import ConfigurationManager as cf
 import numpy as np
+import time
 import os
 
 class DataManager():
-    def __init__(self, species_list, run_name, verbose=False):
-        self.run_name = run_name
-        self.verbose = verbose
+    def __init__(self, species_list):
+        # set run name so different runs are automatically recorded seperately
+        self.run_name = time.strftime("%d_%H_%M")
+        self.verbose = cf.PRINT_STATS_TO_CONSOLE
         self.dataDirName = 'rawdata'
         self.counter = 0
         self.species_list = species_list
         # avg_species_history stores a list of variables for each species
         # the data is averaged over 5 gens, each set of 5 is completely seperate
-        # data is in form: [ reward, wood_built, stone_built, ewood_destroyed, estone_destroyed, fwood_destroyed, fstone_destroyed]
+        # data is in form: [ reward, wood_built, stone_built, bridges_built, ewood_destroyed, estone_destroyed, fwood_destroyed, fstone_destroyed]
         self.avg_species_history = [[] for __ in range(cf.NUM_SPECIES)]
         
         prediction_strings = ["move_up","move_left","move_right","move_down","turn_right","turn_left","eat","cut","mine","build_wood","build_stone","build_bridge","destroy"]
         datanames = ["avg_ticks", "times_eaten", "trees_cut", "stone_mined", "wood_built", "stone_built", "bridges_built", "twood_destroyed", "tstone_destroyed", "ewood_destroyed", "estone_destroyed"]
         self.condensed_prediction_strings = ["mov_up", "mov_le", "mov_ri", "mov_do", "trn_ri", "trn_le","_eat__","_cut__","_mine_","bld_wd","bld_st","bld_br","destry"]
-    
+        self.species_stat_labels = [ "reward", "wd_blt", "st_blt", "br_blt", "ew_dst", "es_dst", "fw_dst", "fs_dst"]
+        
         self.prediction_headers = ', '.join([s + "_" + a for s in species_list for a in prediction_strings])
         self.species_data_headers = ', '.join([s + "_" + a for s in species_list for a in datanames])
         self.reward_headers = ', '.join(species_list * cf.NUM_ISLANDS)
@@ -44,31 +47,33 @@ class DataManager():
             if (self.verbose and self.counter != 0): 
                 self.__print_averages()
             for s in range(cf.NUM_SPECIES):
-                new_avgs = np.zeros(7)
-                new_avgs[0] += reward_stats[:,s].sum()
-                new_avgs[1:7] += species_stats[s,5:11]
+                new_avgs = np.zeros(8)
+                new_avgs[0] += reward_stats[:,s].sum() / 5
+                new_avgs[1:8] += species_stats[s,4:11] / 5
                 self.avg_species_history[s].append(new_avgs)
+            self.counter = 1
         else:
             for s in range(cf.NUM_SPECIES):
-                self.avg_species_history[s][-1][0] += reward_stats[:,s].sum()
-                self.avg_species_history[s][-1][1:7] += species_stats[s,5:11]
+                self.avg_species_history[s][-1][0] += reward_stats[:,s].sum() / 5
+                self.avg_species_history[s][-1][1:8] += species_stats[s,4:11] / 5
             
 
     def commit_data(self, species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats):
         
+        if self.counter == 0:
+            self.__initialize_savedata(species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats)
+            
+        else:
+            self.counter += 1
+            self.__update_data(species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats)
+            
         if self.verbose:
             self.__print_islands(reward_stats, population_dist, stockpile_stats)
             self.__print_predictions(prediction_frequencies)
             
         self.__update_averages(species_stats, reward_stats)
         
-        if self.counter == 0:
-            self.counter = 1
-            self.__initialize_savedata(species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats)
-            
-        else:
-            self.counter += 1
-            self.__update_data(species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats)
+        
     
     def __initialize_savedata(self, species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats):
         
@@ -117,10 +122,15 @@ class DataManager():
             f.flush()
 
     def __print_averages(self):
-        print("new 5 generation species averages: ")
+        print("5 generation species averages: ")
+        maxlen = max(len(str(np.asarray(self.avg_species_history).round(0).max())), 6)
+        
         for ix, species in enumerate(self.avg_species_history):
-            print("species {}:".format(self.species_list[ix]))
-            maxlen = max(len(str(np.asarray(species).round(0).max())), 5)
+            print("species {:.12}:".format(self.species_list[ix]), end="| ")
+            
+            for header in self.species_stat_labels:
+                print("{:>{}}".format(header, maxlen), end=" ") 
+            
             for set_num, gen5 in enumerate(species):
                 print("gen {:>3}->{:<3}:".format(5 * set_num, 5 * (set_num + 1) - 1), end="| ")
                 for val in gen5:
