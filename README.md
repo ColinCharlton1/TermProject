@@ -2,6 +2,7 @@
 System: Windows 10
 
 Quick Start Section:
+
 First, install NetLogo version 6.1.0. no version after that works with PyNetLogo
 - https://ccl.northwestern.edu/netlogo/download.shtml
 
