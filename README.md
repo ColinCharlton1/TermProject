@@ -41,3 +41,8 @@ If after training you want to have a showcase of how the models performed every 
 - while still in CWD, run: python showcase.py
 
 Code which was adapted or taken from others code is labelled with comments in the files
+
+
+Added After Due Date:
+I fixed a couple small bugs and added some small QoL stuff
+If you want to use it then it'll be completely updated here, otherwise just use the submitted version
