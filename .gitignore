@@ -1,0 +1,5 @@
+__pycache__/
+.pylint.d/
+main/actions/
+main/models/
+main/rawdata/
