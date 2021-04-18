@@ -11,9 +11,9 @@ import time
 import os
 
 class DataManager():
-    def __init__(self, species_list):
+    def __init__(self, species_list, run_name):
         # set run name so different runs are automatically recorded seperately
-        self.run_name = time.strftime("%d_%H_%M")
+        self.run_name = run_name
         self.verbose = cf.PRINT_STATS_TO_CONSOLE
         self.dataDirName = 'rawdata'
         self.counter = 0
@@ -39,33 +39,34 @@ class DataManager():
         self.reward_data_filename = self.dataDirName + "/reward_data_" + self.run_name + ".csv"
         self.pop_dist_filename = self.dataDirName + "/population_data_" + self.run_name + ".csv"
         self.stockpile_filename = self.dataDirName + "/stockpile_data_" + self.run_name + ".csv"
+        self.exploration_filename = self.dataDirName + "/exploration_history" + self.run_name + ".csv"
         
-    
     
     def __update_averages(self, species_stats, reward_stats):
         if self.counter % 5 == 0:
-            if (self.verbose and self.counter != 0): 
+            if (self.verbose and self.counter != 0):
                 self.__print_averages()
             for s in range(cf.NUM_SPECIES):
                 new_avgs = np.zeros(8)
                 new_avgs[0] += reward_stats[:,s].sum() / 5
                 new_avgs[1:8] += species_stats[s,4:11] / 5
                 self.avg_species_history[s].append(new_avgs)
-            self.counter = 1
+            if self.counter == 0: self.counter = 1
+            
         else:
             for s in range(cf.NUM_SPECIES):
                 self.avg_species_history[s][-1][0] += reward_stats[:,s].sum() / 5
                 self.avg_species_history[s][-1][1:8] += species_stats[s,4:11] / 5
             
 
-    def commit_data(self, species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats):
+    def commit_data(self, species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats, exploration_rate):
         
         if self.counter == 0:
-            self.__initialize_savedata(species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats)
+            self.__initialize_savedata(species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats, exploration_rate)
             
         else:
             self.counter += 1
-            self.__update_data(species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats)
+            self.__update_data(species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats, exploration_rate)
             
         if self.verbose:
             self.__print_islands(reward_stats, population_dist, stockpile_stats)
@@ -75,7 +76,7 @@ class DataManager():
         
         
     
-    def __initialize_savedata(self, species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats):
+    def __initialize_savedata(self, species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats, exploration_rate):
         
         if not os.path.exists(self.dataDirName):
             os.mkdir(self.dataDirName)
@@ -97,10 +98,14 @@ class DataManager():
             f.flush()
             
         with open(self.stockpile_filename, 'wb') as f:
-            np.savetxt(f, stockpile_stats, header=self.stockpile_headers, delimiter=",", newline="\n")
+            np.savetxt(f, stockpile_stats.reshape(1,-1), header=self.stockpile_headers, delimiter=",", newline="\n")
+            f.flush()
+            
+        with open(self.exploration_filename, 'wb') as f:
+            np.savetxt(f, np.asarray([exploration_rate]).reshape(1,-1), header="exploration_rate", delimiter=",", newline="\n")
             f.flush()
     
-    def __update_data(self, species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats):
+    def __update_data(self, species_stats, prediction_frequencies, reward_stats, population_dist, stockpile_stats, exploration_rate):
         with open(self.species_data_filename, 'ab') as f:
             np.savetxt(f, species_stats.reshape(1,-1), delimiter=",", newline="\n")
             f.flush()
@@ -119,6 +124,10 @@ class DataManager():
           
         with open(self.stockpile_filename, 'ab') as f:
             np.savetxt(f, stockpile_stats.reshape(1,-1), delimiter=",", newline="\n")
+            f.flush()
+            
+        with open(self.exploration_filename, 'ab') as f:
+            np.savetxt(f, np.asarray([exploration_rate]).reshape(1,-1), delimiter=",", newline="\n")
             f.flush()
 
     def __print_averages(self):

@@ -19,6 +19,7 @@ from WorldUtils import update_world, get_world_data, get_masked_world_data, get_
 NUM_ACTIONS = 13 # must be 13
 WORLD_FEATURES = 3 # must be 3
 
+TARGET_RUN_NAME = "18_03_23"
 START_GENERATION = 5
 END_GENERATION = 30
     
@@ -35,7 +36,7 @@ def run_showcase():
     
     
     # Useful Variable Initialization
-    exploration_rate = 1.0 - (START_GENERATION * (cf.EPISODE_LENGTH / 100) * cf.EXPLORATION_DECAY)
+    exploration_rates = get_exploration_rates()
     team_species = int(cf.NUM_SPECIES/2)
     species_list = ["red1", "red2", "red3", "red4", "red5"][:team_species] + \
                    ["purple1", "purple2", "purple3", "purple4", "purple5"][:team_species]
@@ -60,7 +61,7 @@ def run_showcase():
         netlogo.command("setup " + get_species_dist_string(population_dist))
         
         # Species Manager Setup (The Neural Network and Memory Manager)
-        model_name = os.getcwd() + "/models/fullModel" + str(gen) + ".h5"
+        model_name = os.getcwd() + "/models/fullModel_" + TARGET_RUN_NAME + "_gen" + str(gen) + ".h5"
         species_manager = TrainedSpeciesManager(model_name,
                                                 species_list,
                                                 NUM_ACTIONS)
@@ -79,7 +80,7 @@ def run_showcase():
                      cf.AGENT_SIGHT_RADIUS:new_world.shape[1] + cf.AGENT_SIGHT_RADIUS] = new_world.copy()
             
         current_world = padded_world.copy()
-        exploration_rate = max(exploration_rate - cf.EXPLORATION_DECAY * (cf.EPISODE_LENGTH / 100) * 5, 0.01)
+        exploration_rate = exploration_rates[gen]
         i = 1
         ########################################### tick loop ############################################
         while i < cf.EPISODE_LENGTH + 2:
@@ -144,6 +145,11 @@ def run_showcase():
     netlogo.kill_workspace() # Killed cause unnecessary
     print("ready to be killed")
 
+
+def get_exploration_rates():
+    target = "rawdata/exploration_history" + TARGET_RUN_NAME + ".csv"
+    rates = np.loadtxt(target).flatten()
+    return rates
 
 if __name__ == "__main__":
     run_showcase()

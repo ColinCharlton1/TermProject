@@ -16,21 +16,20 @@ PRINT_STATS_TO_CONSOLE = True
 
 ####################### Actor Control Variables #######################
 NUM_SPECIES = 4 # max 10
-SPECIES_START_POP = 30
+SPECIES_START_POP = 25
 EXPLORATION_DECAY = 0.001
-MAX_MEM_SIZE = 40000
+MAX_MEM_SIZE = 30000
 # Number of islands will be the number of processes created
 # used mainly because I couldn't come up with any other way
 # to run systems in parrallel on netlogo
-NUM_ISLANDS = 3
+NUM_ISLANDS = 8
 
 ####################### Neural Network Variables #######################
-LEARNING_RATE = 0.0008
+LEARNING_RATE = 0.001
 BATCH_SIZE = 512
 TRAIN_FREQUENCY = 5
 UPDATE_TARGET_FREQUENCY = 200
-DISCOUNT_RATE = 0.8
-
+DISCOUNT_RATE = 0.5
 
 ####################### System Control Variables #######################
 NUMBER_OF_GENERATIONS = 10000
@@ -38,7 +37,7 @@ EPISODE_LENGTH = 600
 
 # Use as many as your computer can handle
 # the NetLogo instances use some of their own threading, so not sure how much gain you can actually get from increasing
-NUM_PROCESSES = 6
+NUM_PROCESSES = 5
 
 # Honestly, some values of these might crash the simulation or cause it to enter into an infinite loop
 # If a value breaks it, then it just needs to be changed to something more reasonable
@@ -50,7 +49,7 @@ STOCKPILE_NUMBER = 15 # stockpiles are the patches which are arbitrarily of the 
 BERRY_ABUNDANCE = 200 # berries in bush = BERRY_ABUNDANCE + random (BERRY_ABUNDANCE / 2)
 WOOD_CONCENTRATION = 100 # wood in tree = WOOD_CONCENTRATION + random (WOOD_CONCENTRATION / 2)
 ROCK_DENSITY = 40 # rock per mine action = ROCK_DENSITY + random (ROCK_DENSITY / 2)
-START_HUNGER = 750
+START_HUNGER = 1000
 MAX_EAT = 100 # hunger per eat action = (MAX_EAT / 2) + random (MAX_EAT / 2)
 MAX_HUNGER = 1500
 
@@ -59,7 +58,7 @@ MAX_HUNGER = 1500
 # ie. 0.3 means stone avoids spawning on patches with
 # x < 0.3 * max-pxcor and x > 0.7 * max-pxcor and same for y
 # in range [0, 0.2]
-STONE_CENTERING = 0.2
+STONE_CENTERING = 0.1
 
 # 0: teams spawn as far away from eachother as possible
 # 0.5: teams each spawn on their own side
@@ -68,12 +67,12 @@ STONE_CENTERING = 0.2
 # also affects stockpile placement to an extent:
 # team stock spawn = max list 0.1 (1 - 0.1 - team-seperation)
 # representing the % away from teams edge they will spawn
-TEAM_SEPERATION = 0.75
+TEAM_SEPERATION = 0.7
 
 # Controls how team sides are drawn
 # 0: left and right split
 # 1: top and bottom split
-TEAM_SPLIT_STYLE = 0
+TEAM_SPLIT_STYLE = 1
 
 ######### Rewards and Bonus Tuning #########
 # E: enemy  F: friendly
@@ -95,19 +94,19 @@ REPEAT_TURN_PENALTY = -0.03
 
 # multipliers based on distance to features: bonus += val / distance
 WOOD__WATER = 2
-WOOD__F_STOCK = 3
+WOOD__F_STOCK = 2
 WOOD__E_STOCK = -3
-STONE__WATER = 2
+STONE__WATER = 0.5
 STONE__F_STOCK = 4
-STONE__E_STOCK = -4
-ALL_STRUCTS__CENTER_WORLD = 2
-DESTROY_E__E_STRUCT = 2
-DESTROY_E__F_STRUCT = 2
+STONE__E_STOCK = -2
+ALL_STRUCTS__CENTER_WORLD = 3
+DESTROY_E__E_STRUCT = 1
+DESTROY_E__F_STRUCT = 3
 DESTROY_E__E_STOCK = 4
-DESTROY_E__F_STOCK = 4
+DESTROY_E__F_STOCK = 2
 
 # multipliers based on number of adjacent structures
-WOOD__F_ADJ = 1.0
+WOOD__F_ADJ = 0.8
 WOOD__E_ADJ = -1.0
 STONE__F_ADJ = 1.0
 STONE__E_ADJ = -1.0
@@ -139,18 +138,18 @@ MASK_VISION = False
 
 # must change if more than 15 islands used, each island uses the same type as its index
 # so to change the world type visible in the NetLogo gui, change first entry
-# format [rock_adjustment, tree_adjustment, bush_adjustment, puddle_adjustment, river_toggle] 
 # adjusts the percent of the world area which will be covered by each feature
 # tree, and bush: 0 is 10% of green patches, each increase/decrease is a change of 1%
 # rocks: 0 is 5% of all patches, each increase/decrease is a change of 0.5%
 # puddles: 0 is 1% of all patches, each increase/decrease is a change of 0.5%
 # river: 1 is create river, 0 is don't create river
-WORLD_TYPES = [[8, 0, 0, 1, 1],
-               [6, 3, 3, 3, 1],
-               [6, 2, 2, 1, 1],
-               [6, 3, 3, 3, 1],
-               [6, 2, 2, 1, 1],
-               [3, 1, 1, 1, 1],
+# format [rock_adjustment, tree_adjustment, bush_adjustment, puddle_adjustment, river_toggle] 
+WORLD_TYPES = [[11, 1, 1, 1, 1],
+               [6, 1, 3, 2, 1],
+               [6, -10, 5, 1, 1],
+               [6, -10, 5, 2, 1],
+               [-10, 0, 5, 1, 1],
+               [-10, 1, 5, 1, 1],
                [2, 2, 2, 1, 1],
                [8, 0, 0, 1, 1],
                [8, -2, -2, 1, 1],
@@ -200,14 +199,10 @@ def get_reward_configs():
 
 
 
-# rpt_turn_penalty
-# mv-cost 
-# wmv-cost 
-# cut-cost 
-# mne-cost 
-# bld-w-cost 
-# bld-s-cost 
-# bld-b-cost
-# dest-w-cost 
-# dest-s-cost 
-# dest-stock-cost
+# Experimental:
+FAIL_STREAK_ALLOWANCE = 5
+SUCCESS_STREAK_GOAL = 5
+
+# LR = learning rate
+FAIL_STREAK_LR_MOD = 1.1
+SUCCESS_STREAK_LR_MOD = 0.9

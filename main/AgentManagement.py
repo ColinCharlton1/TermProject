@@ -88,13 +88,15 @@ class SpeciesManager():
            https://towardsdatascience.com/qrash-course-deep-q-networks-from-the-ground-up-1bbda41d3677
 
     """
-    def __init__(self, species_names, num_actions, channels=3, num_extras=9, min_world_val = 0, max_world_val = 25, saved_model=None):
+    def __init__(self, species_names, num_actions, run_name, channels=3, num_extras=9, min_world_val = 0, max_world_val = 25, saved_model=None):
         # Creating Required Directories in case they don't exist
         modelDirName = 'models'
         if not os.path.exists(modelDirName):
             os.mkdir(modelDirName)
+        self.run_name = run_name
         # dimensions of agent states
         dim = cf.AGENT_SIGHT_RADIUS * 2 + 1
+        self.learning_rate = cf.LEARNING_RATE
         # allows for a saved model to be the initial model used in a training run
         # untested and no support outside of SpeciesManager, would need to change code in main to use
         # just add a model name to the construction in main, and potentialy adjust variables like exploration rate
@@ -107,7 +109,7 @@ class SpeciesManager():
         # creates fresh model and target
         else:
             model = createFullSpeciesModel(len(species_names), cf.TIMESTEPS_IN_OBSERVATIONS, dim, channels, num_extras - 2, num_actions, "fullModel", species_names)
-            model.compile(tf.optimizers.RMSprop(learning_rate=cf.LEARNING_RATE), "mse")
+            model.compile(tf.optimizers.RMSprop(learning_rate=self.learning_rate), "mse")
             self.model = model
             target_model = tf.keras.models.clone_model(model)
             target_model.set_weights(model.get_weights())
@@ -248,8 +250,19 @@ class SpeciesManager():
         # updates target model weights to current model weights when called from main
         self.target_model.set_weights(self.model.get_weights())
         
+        
+    def increase_learning(self):
+        self.learning_rate = self.learning_rate * cf.FAIL_STREAK_LR_MOD
+        # used answer by Tomé Silva here: https://stackoverflow.com/questions/59737875/keras-change-learning-rate
+        self.model.optimizer.learning_rate.assign(self.learning_rate)
+        
+    def decrease_learning(self):
+        self.learning_rate = self.learning_rate * cf.SUCCESS_STREAK_LR_MOD
+        # used answer by Tomé Silva here: https://stackoverflow.com/questions/59737875/keras-change-learning-rate
+        self.model.optimizer.learning_rate.assign(self.learning_rate)
+        
     def savemodel(self, savetag):
-        self.model.save(os.getcwd() + "/models/fullModel" + savetag + ".h5")
+        self.model.save(os.getcwd() + "/models/fullModel_" + self.run_name + "_gen" + savetag + ".h5")
         
 # takes a trained model to create, same idea as normal manager just simplified to not train
 # meant to be used by showcase to run saved models and show results

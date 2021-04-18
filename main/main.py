@@ -21,6 +21,7 @@ NUM_ACTIONS = 13 # must be 13
 WORLD_FEATURES = 3 # must be 3
 
 def main():
+    run_name = time.strftime("%d_%H_%M")
     # Tensorflow Settings
     physical_devices = tf.config.list_physical_devices('GPU')
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
@@ -29,11 +30,13 @@ def main():
     # Useful Variable Initialization
     current_worlds = [0] * cf.NUM_ISLANDS
     exploration_rate = 1.0
+    fail_streak = 0
+    success_streak = 0
     team_species = int(cf.NUM_SPECIES/2)
     species_list = ["red1", "red2", "red3", "red4", "red5"][:team_species] + \
                    ["purple1", "purple2", "purple3", "purple4", "purple5"][:team_species]
      
-    last_gen_total_rewards = np.repeat(-100,(cf.NUM_ISLANDS * cf.NUM_SPECIES)).reshape((cf.NUM_ISLANDS, cf.NUM_SPECIES))
+    best_gen_total_rewards = np.repeat(-100,(cf.NUM_ISLANDS * cf.NUM_SPECIES)).reshape((cf.NUM_ISLANDS, cf.NUM_SPECIES))
     myrng = np.random.default_rng()
     population_dist_probs = np.zeros((cf.NUM_SPECIES, cf.NUM_ISLANDS)).astype(np.float32) + 1 / cf.NUM_ISLANDS
     population_dist = np.zeros((cf.NUM_ISLANDS, cf.NUM_SPECIES)).astype(np.int32) + cf.SPECIES_START_POP
@@ -44,7 +47,7 @@ def main():
     padded_world = np.zeros((cf.WORLD_HEIGHT + padding, cf.WORLD_WIDTH + padding, WORLD_FEATURES)).astype(np.int8) 
 
     # Recording Variable Initialization
-    data_manager = DataManager(species_list)
+    data_manager = DataManager(species_list, run_name)
     
     # Species Manager Setup (The Neural Network and Memory Manager)
     species_manager = SpeciesManager(species_list,
@@ -210,9 +213,28 @@ def main():
         if (g % 5 == 0):
             species_manager.savemodel(str(g))
             
-        if exploration_rate < 0.6 and last_gen_total_rewards.sum() > gen_total_rewards.sum():
-            exploration_rate += cf.EXPLORATION_DECAY * (cf.EPISODE_LENGTH / 100) * 2
-        last_gen_total_rewards = gen_total_rewards.copy()
+        if best_gen_total_rewards.sum() * (0.8 - 0.05 * fail_streak) > gen_total_rewards.sum():
+            # adjust exploration rate to be higher
+            modifier = min(2, best_gen_total_rewards.sum() * (0.8 + 0.1 * fail_streak) / max(gen_total_rewards.sum(), 1))
+            exploration_rate += cf.EXPLORATION_DECAY * (cf.EPISODE_LENGTH / 100) * modifier
+            success_streak = 0
+            fail_streak += 1
+            if fail_streak >= cf.FAIL_STREAK_ALLOWANCE:
+                fail_streak = 0
+                species_manager.increase_learning()
+        else:
+            # reduce exploration rate by a small extra amount
+            modifier = min(2, (0.1 * success_streak))
+            exploration_rate -= cf.EXPLORATION_DECAY * (cf.EPISODE_LENGTH / 100) * modifier
+            fail_streak = 0
+            success_streak += 1
+            if success_streak >= cf.SUCCESS_STREAK_GOAL:
+                success_streak = 0
+                species_manager.decrease_learning()
+                
+        if gen_total_rewards.sum() > best_gen_total_rewards.sum():
+            best_gen_total_rewards = gen_total_rewards.copy()
+
         ################### generation summary #################
         print("########################################################")
         print("Generation {} Summary:".format(g))

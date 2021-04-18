@@ -870,13 +870,13 @@ to reward-destroy-wood [ec dc]
   let my-color team-color
   ask patch-ahead 1
   [
-    if (count patches with [pcolor = ec] > 0)
+    if (count other patches with [pcolor = ec] > 0)
     [set bonus bonus + destroy_e__e_stock_b / distance (min-one-of other (patches with [pcolor = ec]) [distance myself])]
-    if (count patches with [pcolor = my-color] > 0)
+    if (count other patches with [pcolor = my-color] > 0)
     [set bonus bonus + destroy_e__f_stock_b / distance (min-one-of other (patches with [pcolor = my-color]) [distance myself])]
-    if (count patches with [shade-of? ec pcolor] > 0)
+    if (count other patches with [shade-of? ec pcolor] > 0)
     [set bonus bonus + destroy_e__e_struct_b / distance (min-one-of other (patches with [shade-of? ec pcolor]) [distance myself])]
-    if (count patches with [shade-of? my-color pcolor] > 0)
+    if (count other patches with [shade-of? my-color pcolor] > 0)
     [set bonus bonus + destroy_e__f_struct_b / distance (min-one-of other (patches with [shade-of? my-color pcolor]) [distance myself])]
   ]
   ifelse (shade-of? my-color dc) [set reward destroy_friendly_r]
@@ -888,13 +888,13 @@ to reward-destroy-stone [ec dc]
   let my-color team-color
   ask patch-ahead 1
   [
-    if (count patches with [pcolor = ec] > 0)
+    if (count other patches with [pcolor = ec] > 0)
     [set bonus bonus + destroy_e__e_stock_b / distance (min-one-of other (patches with [pcolor = ec]) [distance myself])]
-    if (count patches with [pcolor = my-color] > 0)
+    if (count other patches with [pcolor = my-color] > 0)
     [set bonus bonus + destroy_e__f_stock_b / distance (min-one-of other (patches with [pcolor = my-color]) [distance myself])]
-    if (count patches with [shade-of? ec pcolor] > 0)
+    if (count other patches with [shade-of? ec pcolor] > 0)
     [set bonus bonus + destroy_e__e_struct_b / distance (min-one-of other (patches with [shade-of? ec pcolor]) [distance myself])]
-    if (count patches with [shade-of? my-color pcolor] > 0)
+    if (count other patches with [shade-of? my-color pcolor] > 0)
     [set bonus bonus + destroy_e__f_struct_b / distance (min-one-of other (patches with [shade-of? my-color pcolor]) [distance myself])]
   ]
   ifelse (shade-of? my-color dc) [set reward destroy_friendly_r]
