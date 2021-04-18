@@ -130,7 +130,7 @@ class DataManager():
             
             for header in self.species_stat_labels:
                 print("{:>{}}".format(header, maxlen), end=" ") 
-            
+            print("|")
             for set_num, gen5 in enumerate(species):
                 print("gen {:>3}->{:<3}:".format(5 * set_num, 5 * (set_num + 1) - 1), end="| ")
                 for val in gen5:
