@@ -101,12 +101,10 @@ def run_showcase():
             if type(world_updates) is np.ndarray:
                 update_world(current_world, world_updates.astype(np.int16), cf.AGENT_SIGHT_RADIUS)
 
-
-            new_world = current_world.copy()
             if cf.MASK_VISION:
-                new_states = get_masked_world_data(new_world, new_species_vals, cf.AGENT_SIGHT_RADIUS)
+                new_states = get_masked_world_data(current_world, new_species_vals, cf.AGENT_SIGHT_RADIUS)
             else:
-                new_states = get_world_data(new_world, new_species_vals, cf.AGENT_SIGHT_RADIUS)
+                new_states = get_world_data(current_world, new_species_vals, cf.AGENT_SIGHT_RADIUS)
                 
                 
             new_species_vals[:,0] = new_species_vals[:,0] / cf.WORLD_WIDTH
@@ -121,10 +119,9 @@ def run_showcase():
                 start = end  
     
             if i == 1:
-                species_manager.new_generation(all_new_states, all_new_extras, [new_world])
+                species_manager.new_generation(all_new_states, all_new_extras)
             else:
-                species_manager.add_to_actors(
-                    species_ids, all_new_states, all_new_extras, [new_world])
+                species_manager.add_to_actors(species_ids, all_new_states, all_new_extras)
 
             ############################## get best actions ############################
             actions = myrng.integers(0, NUM_ACTIONS, size=len(living_ids[offset:]))

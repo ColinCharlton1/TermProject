@@ -8,6 +8,7 @@ Created on Wed Apr 14 13:12:45 2021
 import numpy as np
 from numba import njit
 from math import ceil
+import ConfigurationManager as cf
 
 # Simple adaptation of population distribution described in: 
 # Leibo, Joel Z., et al. "Malthusian reinforcement learning." arXiv preprint arXiv:1812.07019 (2018).
@@ -47,12 +48,50 @@ def get_masked_world_data(target_world, species_vals, asr):
     return [mask_vision(target_world[int(y) : int(y) + 2 * asr + 1,
                                      int(x) : int(x) + 2 * asr + 1 ])
                                      for x, y in species_vals[:,0:2]]
-     
+
+# this breaks array data sharing unfortunately    
 @njit()
 def get_world_data(target_world, species_vals, asr):
     return [target_world[int(y) : int(y) + 2 * asr + 1,
                          int(x) : int(x) + 2 * asr + 1 ]
                          for x, y in species_vals[:,0:2]]
+
+@njit()
+def apply_exploration_rewards(team1_ix_data, team2_ix_data, species_vals, team2_start):
+    count = 0
+    for row in species_vals:
+        action = int(action_to_index(row[-2]))
+        if (count < team2_start and row[-1] > 0):
+            team1_ix_data[int(row[0]),int(row[1]),action] += 1
+        elif (row[-1] > 0):
+            team2_ix_data[int(row[0]),int(row[1]),action] += 1
+        count += 1
+    new_team1_averages = np.ones(4)
+    new_team2_averages = np.ones(4)
+    for actx in range(4):
+        new_team1_averages[actx] = team1_ix_data[:,:,actx].mean()
+        new_team2_averages[actx] = team2_ix_data[:,:,actx].mean()
+        
+    count = 0
+    for row in species_vals:
+        action = int(action_to_index(row[-2]))
+        if (count < team2_start and row[-1] > 0):
+            species_vals[count,-1] += 0.03 * max(0,
+                (new_team1_averages[action] - team1_ix_data[int(row[0]),int(row[1]),action]) /
+                    new_team1_averages[action])           
+            
+        elif (row[-1] > 0):
+            species_vals[count,-1] += 0.03 * max(0,
+                (new_team2_averages[action] - team2_ix_data[int(row[0]),int(row[1]),action]) /
+                    new_team2_averages[action])
+        count += 1
+@njit()
+def action_to_index(act):
+    if act < 4: return 0
+    if act < 9: return 1
+    if act < 12: return 2
+    return 3
+
 
 # numba was incredibly helpful in speeding up the way I decided to do masking
 # it would take an unreasonable amount of time without it
@@ -167,3 +206,17 @@ def mask_axises(matrix, mask, center, max_obstruction, xoffset=0, yoffset=0):
                     mask[center+yoffset+x*ysign, center-y-1] = max(xy_area, mask[center+yoffset+x*ysign, center-y-1])
                 else:
                     mask[center+yoffset+x*ysign, center-y-1] += xy_area
+
+
+# taken from https://ipython-books.github.io/45-understanding-the-internals-of-numpy-to-avoid-unnecessary-array-copying/                   
+def get_data_base(arr):
+    """For a given NumPy array, find the base array
+    that owns the actual data."""
+    base = arr
+    while isinstance(base.base, np.ndarray):
+        base = base.base
+    return base
+
+# taken from https://ipython-books.github.io/45-understanding-the-internals-of-numpy-to-avoid-unnecessary-array-copying/
+def arrays_share_data(x, y):
+    return get_data_base(x) is get_data_base(y)

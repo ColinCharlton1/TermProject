@@ -1,4 +1,5 @@
 globals [
+  process-id
   ; environment related globals
   rock-adjustment
   tree-adjustment
@@ -15,9 +16,12 @@ globals [
   max-bushes
   base-berry-num
   base-wood-num
+  max-ticks
   sorted-patches
   world-updates
   actor-stats
+  generation-num
+  save-directory
 
   ; actor related globals
   pop-mod
@@ -27,6 +31,8 @@ globals [
   start-hunger
   max-carried-wood
   max-carried-stone
+  red-advantage
+  purple-advantage
   red-bonus
   purple-bonus
   team-seperation
@@ -45,6 +51,7 @@ globals [
   destroy-stock-hcost
 
   ; reward related globals
+  death-penalty
   eating_r
   cut_tree_r
   mine_r
@@ -64,6 +71,7 @@ globals [
   stone__f_stock_b
   stone__e_stock_b
   all_structs__center_world_b
+  last_struct_built_b
   destroy_e__e_struct_b
   destroy_e__f_struct_b
   destroy_e__e_stock_b
@@ -77,6 +85,7 @@ globals [
   bridge__bridge_adj_b
 ]
 
+breed [halos halo]
 breed [trees tree]
 breed [bushes bush]
 breed [actors actor]
@@ -88,7 +97,9 @@ actors-own [
   carried-wood
   carried-stone
   reward
+  cumulative_reward
   turn-restriction
+  last-build-position
   ; int with meaning as shown in execute-actions
   action
   death-action
@@ -143,7 +154,7 @@ end
 to-report get-actor-data
   set world-updates (list)
   if (count actors with [death-mark != 3] = 0) [ report 0 ]
-  report map [a -> [(list pxcor pycor (safe-patch-ahead) (heading-box heading) (hunger / max-hunger) (carried-wood / max-carried-wood) (carried-stone / max-carried-stone) action reward)] of a] (sort actors with [death-mark != 3])
+  report map [a -> [(list pxcor pycor (safe-patch-ahead) (heading-box heading) (hunger / max-hunger) (carried-wood / max-carried-wood) (carried-stone / max-carried-stone) my-advantage action reward)] of a] (sort actors with [death-mark != 3])
 end
 
 to-report safe-patch-ahead
@@ -183,6 +194,8 @@ to-report get-actor-stats
       enemy-stone-destroyed) actor-stats
   ]
   set actor-stats sort-by [ [l1 l2] -> item 0 l1 < item 0 l2] actor-stats
+  export-view (word save-directory "island_" process-id "_gen_" generation-num ".png")
+  set generation-num generation-num + 1
   report actor-stats
 end
 
@@ -194,6 +207,11 @@ end
 
 ;; *********************************** Data Helper Functions ***********************************
 
+to-report my-advantage
+  if (team-color = red) [report red-advantage]
+  report purple-advantage
+end
+
 to-report heading-box [h]
   if (h < 45) [report 0.8]
   if (h < 135) [report 0.6]
@@ -203,15 +221,15 @@ to-report heading-box [h]
 end
 
 to-report color-box [c]
-  if (c < 5.3) [report 3] ; more full rock patches
-  if (c < 6) [report 4] ; emptier rock patches
-  if (c < 15) [report 14] ; red stone
+  if (c < 5.3) [report 10] ; more full rock patches
+  if (c < 6) [report 9] ; emptier rock patches
+  if (c < 15) [report 13] ; red stone
   if (c = 15) [report 16] ; red stockpile
   if (c < 20) [report 12] ; red wood
-  if (c <= brown + 1) [report 8] ; bridges
-  if (c < 60) [report 9] ; grass patches
-  if (c < 100) [report 6] ; water patches
-  if (c < 115) [report 22] ; violet stone
+  if (c <= brown + 1) [report 3] ; bridges
+  if (c < 60) [report 1] ; grass patches
+  if (c < 100) [report 5] ; water patches
+  if (c < 115) [report 21] ; violet stone
   if (c = 115) [report 24] ; violet stockpile
   report 20 ; violet wood
 end
@@ -228,8 +246,8 @@ end
 
 ;; *********************************** Functions For Starting Generation From Python ***********************************
 
-to set-env-params [ rock-adj tree-adj bush-adj pud-adj river-tog ww wh ps berry-start wood-start stone-dense stone-cent
-                    start-pop stock-num t-seperation t-split-style start-hgr max-eat max-hgr]
+to set-env-params [ rock-adj tree-adj bush-adj pud-adj river-tog ww wh ps max-t berry-start wood-start stone-dense stone-cent
+                    start-pop stock-num t-seperation t-split-style start-hgr max-eat max-hgr pro-id run-name]
   set rock-adjustment rock-adj
   set tree-adjustment tree-adj
   set bush-adjustment bush-adj
@@ -254,16 +272,20 @@ to set-env-params [ rock-adj tree-adj bush-adj pud-adj river-tog ww wh ps berry-
   set bush-reproduce-ticks 75
   resize-world 0 (ww - 1) 0 (wh - 1)
   set-patch-size ps
+  set max-ticks max-t
+  set process-id pro-id
+  set save-directory run-name
 end
 
 ; this is an awful function, but its arguably the best way to send over the data from python
-to set-reward-params [eat_r cut_r mne_r bld_w_r bld_s_r bld_b_r dest_ew_r dest_es_r dest_estock_r dest_f
-                      w_wat_b w_f_stock_b w_e_stock_b s_wat_b s_f_stock_b s_e_stock_b world_center_b
+to set-reward-params [death eat_r cut_r mne_r bld_w_r bld_s_r bld_b_r dest_ew_r dest_es_r dest_estock_r dest_f
+                      w_wat_b w_f_stock_b w_e_stock_b s_wat_b s_f_stock_b s_e_stock_b world_center_b last_struct_b
                       dest_e_e_struct dest_e_f_struct dest_e_e_stock dest_e_f_stock
                       w_f_adj w_e_adj s_f_adj s_e_adj br_w_adj br_br_adj rpt_turn_penalty
                       mv-cost wmv-cost cut-cost mne-cost bld-w-cost bld-s-cost bld-b-cost
                       dest-w-cost dest-s-cost dest-stock-cost]
 
+  set death-penalty death
   set eating_r eat_r
   set cut_tree_r cut_r
   set mine_r mne_r
@@ -282,6 +304,7 @@ to set-reward-params [eat_r cut_r mne_r bld_w_r bld_s_r bld_b_r dest_ew_r dest_e
   set stone__f_stock_b s_f_stock_b
   set stone__e_stock_b s_e_stock_b
   set all_structs__center_world_b world_center_b
+  set last_struct_built_b last_struct_b
 
   set destroy_e__e_struct_b dest_e_e_struct
   set destroy_e__f_struct_b dest_e_f_struct
@@ -316,6 +339,7 @@ to setup [reddist purpdist]
   set actor-stats (list)
   set-default-shape trees "tree"
   set-default-shape bushes "bush"
+  set-default-shape halos "thin square"
   setup-environment
   reset-ticks
 end
@@ -333,6 +357,7 @@ to setup-environment
     set boxedc color-box pcolor
   ]
   set sorted-patches sort patches
+  create-halos 1 [setxy round (max-pxcor / 2) round (max-pycor / 2) set color yellow set shape "thin square" facexy pxcor pycor + 1 set size 1.5]
 end
 
 to clear-generation
@@ -387,15 +412,18 @@ to set-team-bonuses
   let red-structs (count patches with [shade-of? red pcolor])
   let red-stockpiles 5 * (count patches with [pcolor = red])
   let red-pop (count actors with [team-color = red])
-  let red-score max list 0.1 ( ( red-stockpiles + red-structs + red-pop ) * (pop-mod / sum team1-pop-dist) )
+  let red-score max list 1 ( ( red-stockpiles + red-structs + red-pop ))
 
   let purple-structs (count patches with [shade-of? violet pcolor])
   let purple-stockpiles 5 * (count patches with [pcolor = violet])
   let purple-pop (count actors with [team-color = violet])
-  let purple-score max list 0.1 ( ( purple-stockpiles + purple-structs + purple-pop ) * (pop-mod / sum team2-pop-dist ) )
+  let purple-score max list 1 ( ( purple-stockpiles + purple-structs + purple-pop ))
 
-  set red-bonus red-score / (red-score + purple-score)
-  set purple-bonus purple-score / (red-score + purple-score)
+  set red-advantage (red-score /    (red-score + purple-score))
+  set purple-advantage (purple-score / (red-score + purple-score))
+
+  set red-bonus    red-advantage    * max list 0.5 (min list 1.5 (pop-mod / sum team1-pop-dist) )
+  set purple-bonus purple-advantage * max list 0.5 (min list 1.5 (pop-mod / sum team2-pop-dist) )
 end
 
 ;; *********************************** Actor Setup Functions ***********************************
@@ -512,7 +540,7 @@ end
 ;; *********************************** Actor Action Functions ***********************************
 
 to execute-actions
-  ask actors with [death-mark > 0] [ set death-mark death-mark + 1 set action death-action]
+  ask actors with [death-mark > 0] [ set death-mark death-mark + 1 set action -2]
   ask actors with [death-mark = 0] [
 
     ;penalize actors for becoming addicted to spinning
@@ -540,15 +568,16 @@ to execute-actions
     (action = 12) [destroy-structure])
 
     set hunger hunger - 1 ; cost of living
-    if (hunger <= 0) [set death-mark 1 set death-action action set reward -0.1 * (2 - ticks / 600)]
+    if (hunger <= 0) [set death-mark 1 set action -2 set reward death-penalty * ( 1 - (ticks / max-ticks) )]
 
     (
     ifelse
-    (team-color = red and reward >= 0) [set reward reward * red-bonus]
-    (team-color = violet and reward >= 0) [set reward reward * purple-bonus]
+    (team-color = red and reward >= 0) [set reward min list 1 (reward * red-bonus)]
+    (team-color = violet and reward >= 0) [set reward min list 1 (reward * purple-bonus)]
     (team-color = red) [set reward reward * purple-bonus]
     (team-color = violet) [set reward reward * red-bonus]
     )
+    set cumulative_reward cumulative_reward + reward
   ]
 end
 
@@ -575,6 +604,7 @@ to move [x y]
         set patch-actor-score patch-actor-score + 25
         set world-updates lput (list pxcor pycor 1 actor-total) world-updates
       ]
+      set reward 0.0001
     ]
   ]
   ifelse (pcolor = 97) [set hunger hunger - water-move-hcost] ; much more effort to move through water
@@ -586,7 +616,7 @@ to eat-berries ; turtle procedure
   [
     let eat-limit min list (max-hunger - hunger) round ( max-eating / 2 + random (max-eating / 2) )
     ifelse ( eat-limit < round (max-eating / 2) )
-    [ set hunger hunger - 15 ] ; throw up from trying to eat too much
+    [ set hunger hunger - round (max-eating / 4) set reward eating_r / -5] ; throw up from trying to eat too much
     [
       ask max-one-of bushes-here [berries]
       [
@@ -657,12 +687,11 @@ to build-wooden-structure ; turtle procedure
   [
     ifelse (carried-wood >= 50 and shade-of? green ([pcolor] of patch-ahead 1) and count [actors-here] of patch-ahead 1 = 0)
     [
-      let bonus 1
       let my-color team-color
       reward-wood-build my-color
       ask patch-ahead 1 [
         set pcolor my-color + 2.5
-        set boxedc color-box my-color + 2.5
+        set boxedc color-box pcolor
         ask trees-here [die]
         ask bushes-here [die]
         set patch-veg-score 0
@@ -670,6 +699,7 @@ to build-wooden-structure ; turtle procedure
         set world-updates lput (list pxcor pycor 0 0) world-updates
         set world-updates lput (list pxcor pycor 2 boxedc) world-updates
       ]
+      set last-build-position (list pxcor pycor)
       set wood-built wood-built + 1
       set hunger hunger - build-wood-hcost
       set carried-wood carried-wood - 50
@@ -686,12 +716,11 @@ to build-stone-structure ; turtle procedure
            shade-of? green ([pcolor] of patch-ahead 1) and
            count [actors-here] of patch-ahead 1 = 0)
     [
-      let bonus 1
       let my-color team-color
       reward-stone-build my-color
       ask patch-ahead 1 [
         set pcolor my-color - 2.5
-        set boxedc color-box my-color - 2.5
+        set boxedc color-box pcolor
         ask trees-here [die]
         ask bushes-here [die]
         set patch-veg-score 0
@@ -699,6 +728,7 @@ to build-stone-structure ; turtle procedure
         set world-updates lput (list pxcor pycor 0 0) world-updates
         set world-updates lput (list pxcor pycor 2 boxedc) world-updates
       ]
+      set last-build-position (list pxcor pycor)
       set stone-built stone-built + 1
       set hunger hunger - build-stone-hcost
       set carried-stone carried-stone - 50
@@ -722,6 +752,7 @@ to build-bridge ; turtle procedure
         set boxedc color-box brown
         set world-updates lput (list pxcor pycor 2 boxedc) world-updates
       ]
+      set last-build-position (list pxcor pycor)
       set bridges-built bridges-built + 1
       set hunger hunger - build-bridge-hcost
       set carried-stone carried-stone - 10
@@ -736,14 +767,15 @@ to destroy-structure ; turtle procedure
   ifelse (patch-ahead 1 != nobody)
   [
     let destroy-color [pcolor] of patch-ahead 1
+    let my-color team-color
     let enemy-color red
     if (team-color = red) [set enemy-color violet]
     (ifelse (destroy-color = enemy-color) [destroy-stockpile]
     (destroy-color = enemy-color - 2.5) [destroy-stone enemy-color destroy-color]
     (destroy-color = enemy-color + 2.5) [destroy-wood enemy-color destroy-color]
-    (count neighbors with [shade-of? red pcolor or shade-of? violet pcolor or shade-of? gray pcolor] + 8 - count neighbors > 3)
-    [ (ifelse (destroy-color = team-color - 2.5) [destroy-stone enemy-color destroy-color]
-      (destroy-color = team-color + 2.5) [destroy-wood enemy-color destroy-color]) ]
+    (count neighbors with [shade-of? my-color pcolor] + (8 - count neighbors) > 3)
+    [ (ifelse (destroy-color = my-color - 2.5) [destroy-stone enemy-color destroy-color]
+      (destroy-color = my-color + 2.5) [destroy-wood enemy-color destroy-color]) ]
     [ set hunger hunger - 1 ]) ; wasting energy
   ]
   [set hunger hunger - 1] ; wasting energy
@@ -757,7 +789,7 @@ to destroy-stockpile
     ask patch-ahead 1
     [
       set pcolor 57
-      set boxedc color-box 57
+      set boxedc color-box green
       set world-updates lput (list pxcor pycor 2 boxedc) world-updates
     ]
   ]
@@ -803,15 +835,15 @@ end
 ;; *********************************** Reward Functions ***********************************
 
 to reward-wood-build [my-color]
-  let bonus 1
+  let bonus 0
 
   let enemy-color red
   if (team-color = red) [set enemy-color violet]
 
   ask patch-ahead 1 [
-    set bonus bonus + wood__f_adj_b * (count neighbors with [shade-of? my-color pcolor])
-    set bonus bonus + wood__e_adj_b * (count neighbors with [shade-of? enemy-color pcolor])
-    set bonus bonus + all_structs__center_world_b / max list 1 (distance patch (round max-pxcor / 2) (round max-pycor / 2))
+    set bonus bonus + wood__f_adj_b * min list 5 (count neighbors with [shade-of? my-color pcolor])
+    set bonus bonus + wood__e_adj_b * min list 5 (count neighbors with [shade-of? enemy-color pcolor])
+    set bonus bonus + all_structs__center_world_b / max list 1 (distance patch round (max-pxcor / 2) round (max-pycor / 2))
 
     if (count patches with [shade-of? blue pcolor] > 0)
     [set bonus bonus + wood__water_b / distance (min-one-of other (patches with [shade-of? blue pcolor]) [distance myself])]
@@ -821,22 +853,28 @@ to reward-wood-build [my-color]
 
     if (count patches with [pcolor = enemy-color] > 0)
     [set bonus bonus + wood__e_stock_b / distance (min-one-of other (patches with [pcolor = enemy-color]) [distance myself])]
+    if ([last-build-position] of myself != 0)
+    [
+      let lastx [item 0 last-build-position] of myself
+      let lasty [item 1 last-build-position] of myself
+      set bonus bonus + last_struct_built_b / max list 1 distance (patch lastx lasty)
+    ]
   ]
-
-  ifelse (bonus > 0) [ set reward (build_wood_r * bonus) ] ; good placement reward
-  [set reward build_wood_r] ; bad placement reward
+  set bonus bonus + min list 1 (0.02 * wood-built)
+  ifelse (bonus > 1) [ set reward (build_wood_r * bonus) ] ; good placement reward
+  [set reward build_wood_r] ; bad placement rewards
 end
 
 to reward-stone-build [my-color]
-  let bonus 1
+  let bonus 0
 
   let enemy-color red
   if (team-color = red) [set enemy-color violet]
 
   ask patch-ahead 1 [
-    set bonus bonus + stone__f_adj_b * (count neighbors with [shade-of? my-color pcolor])
-    set bonus bonus + stone__e_adj_b * (count neighbors with [shade-of? enemy-color pcolor])
-    set bonus bonus + all_structs__center_world_b / max list 1 (distance patch (round max-pxcor / 2) (round max-pycor / 2))
+    set bonus bonus + stone__f_adj_b * min list 5 (count neighbors with [shade-of? my-color pcolor])
+    set bonus bonus + stone__e_adj_b * min list 5 (count neighbors with [shade-of? enemy-color pcolor])
+    set bonus bonus + all_structs__center_world_b / max list 1 (distance patch round (max-pxcor / 2) round (max-pycor / 2))
 
     if (count patches with [shade-of? blue pcolor] > 0)
       [set bonus bonus + stone__water_b / distance (min-one-of other (patches with [shade-of? blue pcolor]) [distance myself])]
@@ -846,27 +884,33 @@ to reward-stone-build [my-color]
 
     if (count patches with [pcolor = enemy-color] > 0)
       [set bonus bonus + stone__e_stock_b / distance (min-one-of other (patches with [pcolor = enemy-color]) [distance myself])]
+    if ([last-build-position] of myself != 0)
+    [
+      let lastx [item 0 last-build-position] of myself
+      let lasty [item 1 last-build-position] of myself
+      set bonus bonus + last_struct_built_b / max list 1 distance (patch lastx lasty)
+    ]
   ]
-
-  ifelse (bonus > 0) [ set reward (build_wood_r * bonus) ] ; good placement reward
-  [set reward build_wood_r] ; bad placement reward
+  set bonus bonus + min list 0.5 (0.02 * stone-built)
+  ifelse (bonus > 1) [ set reward (build_stone_r * bonus) ] ; good placement reward
+  [set reward build_stone_r] ; bad placement reward
 end
 
 to reward-bridge-build
-  let bonus 1
+  let bonus 0
 
   ask patch-ahead 1 [
-    set bonus bonus + bridge__water_adj_b * (count neighbors with [shade-of? blue pcolor])
-    set bonus bonus + bridge__bridge_adj_b * (count neighbors with [shade-of? brown pcolor])
-    set bonus bonus + all_structs__center_world_b / max list 1 distance patch (round max-pxcor / 2) (round max-pycor / 2)
+    set bonus bonus + bridge__water_adj_b * min list 5 (count neighbors with [shade-of? blue pcolor])
+    set bonus bonus + bridge__bridge_adj_b * min list 5 (count neighbors with [shade-of? brown pcolor])
+    set bonus bonus + all_structs__center_world_b / max list 1 distance patch round (max-pxcor / 2) round (max-pycor / 2)
   ]
-
-  ifelse (bonus > 0) [ set reward (build_bridge_r * bonus) ] ; good placement reward
+  set bonus bonus + min list 0.5 (0.05 * bridges-built)
+  ifelse (bonus > 1) [ set reward (build_bridge_r * bonus) ] ; good placement reward
   [set reward build_bridge_r] ; bad placement reward
 end
 
 to reward-destroy-wood [ec dc]
-  let bonus 1
+  let bonus 0
   let my-color team-color
   ask patch-ahead 1
   [
@@ -879,12 +923,13 @@ to reward-destroy-wood [ec dc]
     if (count other patches with [shade-of? my-color pcolor] > 0)
     [set bonus bonus + destroy_e__f_struct_b / distance (min-one-of other (patches with [shade-of? my-color pcolor]) [distance myself])]
   ]
+  set bonus bonus + max list -1 (min list 2 (0.08 * (enemy-wood-destroyed + enemy-stone-destroyed - team-wood-destroyed - team-stone-destroyed)))
   ifelse (shade-of? my-color dc) [set reward destroy_friendly_r]
   [set reward destroy_enemy_wood_r * bonus]
 end
 
 to reward-destroy-stone [ec dc]
-  let bonus 1
+  let bonus 0
   let my-color team-color
   ask patch-ahead 1
   [
@@ -897,6 +942,7 @@ to reward-destroy-stone [ec dc]
     if (count other patches with [shade-of? my-color pcolor] > 0)
     [set bonus bonus + destroy_e__f_struct_b / distance (min-one-of other (patches with [shade-of? my-color pcolor]) [distance myself])]
   ]
+  set bonus bonus + max list -1 (min list 2 (0.08 * (enemy-wood-destroyed + enemy-stone-destroyed - team-wood-destroyed - team-stone-destroyed)))
   ifelse (shade-of? my-color dc) [set reward destroy_friendly_r]
   [set reward destroy_enemy_stone_r * bonus]
 end
@@ -1001,6 +1047,7 @@ end
 to setup-patches
   ask patches [set pcolor 56]
   setup-rocks
+  setup-boulders
   setup-puddles
   if (river-toggle = 1) [setup-rivers]
   setup-grass-color
@@ -1032,6 +1079,34 @@ to recurse-rocks [r]
     ask neighbors with [pcolor > 9] [recurse-rocks r - (random 70)]
   ]
   [set pcolor 10]
+end
+
+to setup-boulders
+  (foreach range round ( 0.005 * max-pxcor * max-pycor) [
+    [index] ->
+    let randxc random-xcor
+    let randyc random-ycor
+    while [([pcolor] of patch randxc randyc < 10)]
+          [set randxc random-xcor set randyc random-ycor]
+    ask patch randxc randyc [set pcolor random-rock-color boulder-neighbors]
+  ])
+  ask patches with [count neighbors with [pcolor < 10] > 4] [set pcolor random-rock-color]
+end
+
+to boulder-neighbors
+  let rand 0
+  ask neighbors [
+    set rand random 10
+    if (rand = 9) [set pcolor random-rock-color ask neighbors4 [set pcolor random-rock-color]]
+    if (rand < 2) [set pcolor random-rock-color]
+  ]
+  ask neighbors
+  [
+    if ((count neighbors4 with [pcolor < 10] = count neighbors with [pcolor < 10] and
+        count neighbors with [pcolor < 10] < 4) or count neighbors with [pcolor < 10] = 1)
+       [set pcolor random-rock-color]
+  ]
+  ask neighbors4 [if (count neighbors4 with [pcolor < 10] >= 2) [set pcolor random-rock-color]]
 end
 
 to setup-puddles
@@ -1099,7 +1174,7 @@ end
 
 to setup-style-0-and-2-stockpiles
   foreach range stockpile-num [
-    let max-low-x max list 0.1 (1 - 0.1 - team-seperation)
+    let max-low-x max list 0.1 (1 - team-seperation)
     let randxc round ((random (max-pxcor * max-low-x)) + max-pxcor * 0.02)
     let randyc random-ycor
     while [(randyc < max-pycor / 20 or randyc > max-pycor * (19 / 20)) or
@@ -1203,15 +1278,51 @@ to-report spreadcor [basepoint spread isx?]
   ]
   report max (list min list (basepoint + spread / 2 - random-float spread) (max-pycor - 1) (min-pycor + 1))
 end
+
+to make-halo  [r];; actor procedure
+  ;; when you use HATCH, the new turtle inherits the
+  ;; characteristics of the parent.  so the halo will
+  ;; be the same color as the turtle it encircles (unless
+  ;; you add code to change it
+  hatch-halos 1
+  [ set size r * 3
+    ;; Use an RGB color to make halo three fourths transparent
+    set color lput 164 extract-rgb [team-color] of myself
+    facexy xcor max-pycor
+    ;; set thickness of halo to half a patch
+    __set-line-thickness 0.1
+    ;; We create an invisible directed link from the runner
+    ;; to the halo.  Using tie means that whenever the
+    ;; runner moves, the halo moves with it.
+    create-link-from myself
+    [ tie
+      hide-link ] ]
+end
+
+to change-halos
+  ask halos [set size sight-radius * 3]
+end
+
+to display-halos
+  ask actors with [member? who haloed-actors] [make-halo sight-radius]
+end
+
+to hide-halos
+  ask halos [die]
+end
+
+to highlight-best-actors
+  ask max-n-of 5 actors [cumulative_reward] [make-halo 6]
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 12
 12
-1145
-771
+1100
+741
 -1
 -1
-15.0
+12.0
 1
 10
 1
@@ -1222,9 +1333,9 @@ GRAPHICS-WINDOW
 0
 1
 0
-74
+89
 0
-49
+59
 0
 0
 1
@@ -1233,9 +1344,9 @@ ticks
 
 MONITOR
 1150
-325
+365
 1275
-370
+410
 red actors
 count actors with [team-color = red]
 17
@@ -1244,9 +1355,9 @@ count actors with [team-color = red]
 
 MONITOR
 1275
-325
+365
 1400
-370
+410
 purple actors
 count actors with [team-color = violet]
 17
@@ -1255,9 +1366,9 @@ count actors with [team-color = violet]
 
 MONITOR
 1150
-415
+455
 1275
-460
+500
 red structs
 count patches with [shade-of? red pcolor]
 17
@@ -1266,9 +1377,9 @@ count patches with [shade-of? red pcolor]
 
 MONITOR
 1275
-415
+455
 1400
-460
+500
 purple structs
 count patches with [shade-of? violet pcolor]
 17
@@ -1277,9 +1388,9 @@ count patches with [shade-of? violet pcolor]
 
 MONITOR
 1400
-325
+365
 1620
-370
+410
 total berries in bushes
 sum [berries] of bushes
 17
@@ -1288,9 +1399,9 @@ sum [berries] of bushes
 
 MONITOR
 1400
-370
+410
 1620
-415
+455
 total wood in trees
 sum [wood] of trees
 17
@@ -1299,9 +1410,9 @@ sum [wood] of trees
 
 MONITOR
 1150
-460
+500
 1275
-505
+545
 NIL
 red-bonus
 4
@@ -1310,9 +1421,9 @@ red-bonus
 
 MONITOR
 1275
-460
+500
 1400
-505
+545
 NIL
 purple-bonus
 4
@@ -1321,9 +1432,9 @@ purple-bonus
 
 MONITOR
 1150
-370
+410
 1275
-415
+455
 red-stockpiles
 count patches with [pcolor = red]
 17
@@ -1332,9 +1443,9 @@ count patches with [pcolor = red]
 
 MONITOR
 1275
-370
+410
 1400
-415
+455
 purple-stockpiles
 count patches with [pcolor = violet]
 17
@@ -1343,28 +1454,28 @@ count patches with [pcolor = violet]
 
 PLOT
 1150
-10
+120
 1620
-325
+360
 Structures
 time
 structs
 0.0
 500.0
 0.0
-1000.0
+300.0
 false
 false
-"" ""
+"set-plot-x-range 0 max-ticks" "if (count patches with [shade-of? red pcolor] > plot-y-max - 10 or count patches with [shade-of? violet pcolor] > plot-y-max - 10) [set-plot-y-range 0 (plot-y-max + 50)]"
 PENS
 "red" 1.0 0 -2674135 true "" "plot count patches with [shade-of? red pcolor]"
 "purple" 1.0 0 -8630108 true "" "plot count patches with [shade-of? violet pcolor]"
 
 PLOT
 1150
-505
+550
 1620
-720
+770
 Living Actors
 time
 actors
@@ -1374,16 +1485,16 @@ actors
 200.0
 false
 false
-"" ""
+"set-plot-x-range 0 max-ticks\nset-plot-y-range 0 (max list sum (sentence team1-pop-dist) sum (sentence team2-pop-dist)) + 5" ""
 PENS
 "red" 1.0 0 -2674135 true "" "plot count actors with [team-color = red]"
 "purple" 1.0 0 -8630108 true "" "plot count actors with [team-color = violet]"
 
 MONITOR
 1400
-460
+500
 1620
-505
+545
 carried-wood
 sum [carried-wood] of actors
 17
@@ -1392,14 +1503,119 @@ sum [carried-wood] of actors
 
 MONITOR
 1400
-415
+455
 1620
-460
+500
 carried-stone
 sum [carried-stone] of actors
 17
 1
 11
+
+SLIDER
+1265
+15
+1415
+48
+sight-radius
+sight-radius
+1
+25
+15.0
+1
+1
+NIL
+HORIZONTAL
+
+BUTTON
+1150
+85
+1255
+118
+NIL
+change-halos
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+0
+
+INPUTBOX
+1265
+55
+1417
+115
+haloed-actors
+(list 0 30)
+1
+0
+String (reporter)
+
+BUTTON
+1150
+15
+1255
+48
+NIL
+display-halos
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+0
+
+BUTTON
+1150
+50
+1255
+83
+NIL
+hide-halos
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+0
+
+MONITOR
+1420
+70
+1620
+115
+highest cumulative rewards
+sort [precision cumulative_reward 3] of max-n-of (min list (count actors) 5) actors [cumulative_reward]
+3
+1
+11
+
+BUTTON
+1420
+15
+1620
+65
+NIL
+highlight-best-actors
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+0
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1714,6 +1930,11 @@ Circle -16777216 true false 30 30 240
 Circle -7500403 true true 60 60 180
 Circle -16777216 true false 90 90 120
 Circle -7500403 true true 120 120 60
+
+thin square
+true
+0
+Rectangle -7500403 false true 45 45 255 255
 
 tree
 false
